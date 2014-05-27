@@ -20,7 +20,7 @@ import java.util.concurrent._
 object Test extends App {
 
   val lastIDFilename = "/tmp/twitter.lastid.txt"
-  val follow: List[java.lang.Long] = List(1344951,5988062,807095,3108351,3243351,20245577,16906137)
+  val handles = List("WIRED","NYTimes","mrbalky","mrbalkytivo","pourmecoffee","TheEconomist","WSJ")
   var lastStatusID = loadLastStatusID
 
   def loadLastStatusID = {
@@ -38,11 +38,29 @@ object Test extends App {
     }
   }
 
+  def lookUpUserIDs( handles: List[String], twitter: Twitter ): List[java.lang.Long] = {
+    handles.map( h => Long.box(twitter.showUser(h).getId) )
+  }
+
+  def dd( status: Status, indent: String = "" ) {
+    if ( status != null ) {
+      println(s"\n$indent [${status.getId}] ${status.getUser.getName}: ${status.getText}")
+      println(s"$indent user id ${status.getUser.getId}")
+      println(s"$indent in reply to ${status.getInReplyToScreenName}")
+      println(s"$indent in reply to status id ${status.getInReplyToStatusId}")
+      println(s"$indent is retweet ${status.isRetweet}")
+      println(s"$indent source ${status.getSource}")
+      println("is followed user: " + follow.contains(status.getUser.getId) )
+      dd( status.getRetweetedStatus, indent+"--" )
+    }
+  }
+
   def dispStatus( status: Status ) {
-    if ( !status.isRetweet )
-      println(s"""[${status.getId}]${status.getUser.getName}: ${status.getText}""")
-    else
+    if( follow.contains(status.getUser.getId) ) {
+      println(s"\n[${status.getId}] ${status.getUser.getName}: ${status.getText}")
+    } else {
       print(".")
+    }
     updateLastStatusID(status)
   }
 
@@ -88,6 +106,8 @@ object Test extends App {
   twitter.setOAuthConsumer(args(0),args(1))
   twitter.setOAuthAccessToken(new AccessToken(args(2),args(3)))
 
+  val follow = lookUpUserIDs(handles, twitter)
+
   if ( lastStatusID > 0 ) {
     println(s"backfilling from $lastStatusID")
     val minID = lastStatusID
@@ -118,4 +138,5 @@ object Test extends App {
 
   println("Stopping...")
   t4jClient.stop
+
 }
