@@ -1,20 +1,18 @@
 
 import java.io.File
+import java.util.concurrent.{Executors, LinkedBlockingQueue}
 import scala.io.Source
 import scala.concurrent.duration._
-import com.twitter.hbc.ClientBuilder
-import com.twitter.hbc.core._
-import com.twitter.hbc.core.processor.StringDelimitedProcessor;
-import com.twitter.hbc.httpclient.auth.OAuth1
-import com.twitter.hbc.core.endpoint.StatusesFilterEndpoint ;
 import scala.collection.JavaConverters._
-import java.util.concurrent.LinkedBlockingQueue
-import org.apache.commons.lang3.StringEscapeUtils
-import com.twitter.hbc.twitter4j._
-import com.twitter.hbc.twitter4j.message._
 import twitter4j._
 import twitter4j.auth._
-import java.util.concurrent._
+import com.twitter.hbc.ClientBuilder
+import com.twitter.hbc.core.Constants
+import com.twitter.hbc.core.processor.StringDelimitedProcessor
+import com.twitter.hbc.core.endpoint.StatusesFilterEndpoint
+import com.twitter.hbc.httpclient.auth.OAuth1
+import com.twitter.hbc.twitter4j.Twitter4jStatusClient
+import com.twitter.hbc.twitter4j.message.{DisconnectMessage, StallWarningMessage}
 
 // args: <consumerkey> <consumersecret> <token> <tokensecret> [<run mins>]
 object Test extends App {
@@ -42,22 +40,22 @@ object Test extends App {
     handles.map( h => Long.box(twitter.showUser(h).getId) )
   }
 
-  def dd( status: Status, indent: String = "" ) {
+  def dispStatusTree( status: Status, indent: String = "" ) {
     if ( status != null ) {
-      println(s"\n$indent [${status.getId}] ${status.getUser.getName}: ${status.getText}")
+      println(s"\n$indent [${status.getId}] [${status.getCreatedAt}] ${status.getUser.getName}: ${status.getText}")
       println(s"$indent user id ${status.getUser.getId}")
       println(s"$indent in reply to ${status.getInReplyToScreenName}")
       println(s"$indent in reply to status id ${status.getInReplyToStatusId}")
       println(s"$indent is retweet ${status.isRetweet}")
       println(s"$indent source ${status.getSource}")
       println("is followed user: " + follow.contains(status.getUser.getId) )
-      dd( status.getRetweetedStatus, indent+"--" )
+      dispStatusTree( status.getRetweetedStatus, indent+"--" )
     }
   }
 
   def dispStatus( status: Status ) {
     if( follow.contains(status.getUser.getId) ) {
-      println(s"\n[${status.getId}] ${status.getUser.getName}: ${status.getText}")
+      println(s"\n[${status.getId}] [${status.getCreatedAt}] ${status.getUser.getName}: ${status.getText}")
     } else {
       print(".")
     }
@@ -95,11 +93,13 @@ object Test extends App {
     def onUnknownMessageType(msg: String){ println("onUnknownMessageType") }
   }
 
-  def backfill( twitter: Twitter, userID: Long, since: Long ) {
+  def backfill( twitter: Twitter, userID: Long, since: Long ) = {
     val paging = new Paging(since)
-    for ( status <- twitter.getUserTimeline(userID, paging).asScala.reverse ) {
-      dispStatus(status)
-    }
+    twitter.getUserTimeline(userID, paging).asScala
+  }
+
+  def timeCompare( a: Status, b: Status ) = {
+    a.getCreatedAt.getTime < b.getCreatedAt.getTime
   }
 
   val twitter: Twitter = TwitterFactory.getSingleton
@@ -110,9 +110,9 @@ object Test extends App {
 
   if ( lastStatusID > 0 ) {
     println(s"backfilling from $lastStatusID")
-    val minID = lastStatusID
-    for ( id <- follow ) {
-      backfill(twitter, id, minID)
+    val oldTweets = follow.flatMap( id => backfill(twitter, id, lastStatusID) )
+    for ( tweet <- oldTweets.sortWith( timeCompare ) ) {
+      dispStatus(tweet)
     }
   }
 
@@ -138,5 +138,4 @@ object Test extends App {
 
   println("Stopping...")
   t4jClient.stop
-
 }

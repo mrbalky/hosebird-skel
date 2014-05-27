@@ -13,5 +13,7 @@ libraryDependencies ++= Seq( "org.scalatest"        % "scalatest_2.10"          
                              "org.apache.commons"   % "commons-lang3"           % "3.1",
                              "org.slf4j"            % "slf4j-simple"            % "1.7.6",
                              "org.slf4j"            % "log4j-over-slf4j"        % "1.7.6",
-                             "org.slf4j"            % "slf4j-api"               % "1.7.6" )
+                             "org.slf4j"            % "slf4j-api"               % "1.7.6",
+                             "org.scalaj"           %% "scalaj-http"            % "0.3.11"
+                           )
 
